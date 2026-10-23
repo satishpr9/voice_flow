@@ -44,16 +44,20 @@ def main():
             
             t1 = time.time()
             text = engine.transcribe_audio(audio)
+            
+            # Apply Wispr Flow text cleanup
+            from app.core.text_cleaner import TextCleaner
+            cleaned_text = TextCleaner.clean(text)
             elapsed = time.time() - t1
             
-            if text:
-                print(f"\n[TRANSCRIPT] ({elapsed:.2f}s):")
-                print(f"  \"{text}\"\n")
-                db.save_record(text=text, duration_seconds=duration, model_used=config.model_size)
+            if cleaned_text:
+                print(f"\n[WISPR FLOW TRANSCRIPT] ({elapsed:.2f}s):")
+                print(f"  \"{cleaned_text}\"\n")
+                db.save_record(text=cleaned_text, duration_seconds=duration, model_used=config.model_size)
                 
                 # Copy to clipboard
                 import pyperclip
-                pyperclip.copy(text)
+                pyperclip.copy(cleaned_text)
                 print("  -> Copied to clipboard!")
             else:
                 print("\n[TRANSCRIPT]: (No speech detected)\n")

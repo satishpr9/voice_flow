@@ -25,6 +25,7 @@ class AppConfig:
     auto_paste: bool = True              # Automatically paste into active window
     copy_to_clipboard: bool = True       # Always keep in clipboard
     play_chimes: bool = True             # Audio feedback on start/stop
+    clean_speech: bool = True            # Wispr Flow AI text polish (removes fillers & stutters)
 
     # Cloud STT (Optional Fallback / Fast alternative)
     groq_api_key: str = ""

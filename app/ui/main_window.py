@@ -307,6 +307,20 @@ class MainWindow(QMainWindow):
         model_layout.addWidget(self.combo_model)
         layout.addWidget(group_model)
 
+        # Wispr Flow Intelligence Group
+        group_wispr = QGroupBox("Wispr Flow AI & Audio Feedback")
+        wispr_layout = QVBoxLayout(group_wispr)
+
+        self.check_clean_speech = QCheckBox("Wispr Flow Polish (auto-remove 'um', 'uh', stutters, fix capitalization)")
+        self.check_clean_speech.setChecked(self.config.clean_speech)
+        wispr_layout.addWidget(self.check_clean_speech)
+
+        self.check_play_chimes = QCheckBox("Play subtle sound chimes on start and stop dictation")
+        self.check_play_chimes.setChecked(self.config.play_chimes)
+        wispr_layout.addWidget(self.check_play_chimes)
+
+        layout.addWidget(group_wispr)
+
         # Hotkey & Integration
         group_hotkey = QGroupBox("Dictation & Hotkey")
         hotkey_layout = QVBoxLayout(group_hotkey)
@@ -384,8 +398,13 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def _on_file_transcription_finished(self, segments, full_text):
+        from app.core.text_cleaner import TextCleaner
         self.file_progress.hide()
         self.btn_transcribe_file.setEnabled(True)
+
+        if self.config.clean_speech:
+            full_text = TextCleaner.clean(full_text)
+
         self._last_file_segments = segments
         self.file_result_box.setPlainText(full_text)
 
@@ -478,6 +497,8 @@ class MainWindow(QMainWindow):
         self.config.hotkey = self.edit_hotkey.text().strip()
         self.config.auto_paste = self.check_auto_paste.isChecked()
         self.config.copy_to_clipboard = self.check_clipboard.isChecked()
+        self.config.clean_speech = self.check_clean_speech.isChecked()
+        self.config.play_chimes = self.check_play_chimes.isChecked()
         self.config.groq_api_key = self.edit_groq.text().strip()
         self.config.save()
         QMessageBox.information(self, "Settings Saved", "Preferences updated successfully!")

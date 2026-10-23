@@ -1,20 +1,41 @@
 # Voice Flow (Flow STT) 🎙️⚡
 
-A high-performance, privacy-first Speech-to-Text desktop application for Windows, powered by **faster-whisper (CTranslate2 INT8)** and **PySide6 (Qt6)**.
+A high-performance, privacy-first Speech-to-Text desktop application for Windows, engineered in the style of **Wispr Flow**.
 
-Works system-wide like Wispr Flow or Superwhisper: press a hotkey from any application, speak, and your voice is transcribed in milliseconds and pasted directly into your active window.
+Powered by **faster-whisper (CTranslate2 INT8)**, **PySide6 (Qt6)**, and an intelligent spoken text cleaner.
 
 ---
 
-## ✨ Features
+## 🌊 Wispr Flow Experience
 
-- **System-Wide Voice Dictation**:
-  - Global Hotkey: `Ctrl + Alt + Space` (customizable).
-  - Minimalist, floating pill widget with real-time audio waveform animations.
-  - Auto-paste into any focused Windows app (Notepad, Word, Slack, VS Code, Browser, etc.).
+- **Frosted Glass Floating Capsule**:
+  - Discreet, floating stay-on-top capsule that never steals keyboard focus from your cursor.
+  - Live animated 60 FPS **fluid audio waveform** that bounces organically with your voice.
+  - Live timer display (`0:04`) counting while speaking.
+  - Shimmering `Flowing...` transition state and `✓ Pasted!` confirmation.
+  - Built-in `✕` cancel button to discard audio on the fly.
+  - Smooth mouse drag-and-drop to place the pill anywhere on your screen.
+
+- **Wispr Flow AI Text Polish**:
+  - Automatically eliminates verbal fillers: *"um"*, *"uh"*, *"you know"*, *"like"*, *"basically"*.
+  - Fixes stutter repetitions (*"the the"* -> *"the"*).
+  - Normalizes punctuation, capitalizes sentences, and capitalizes *"I"*.
+  - Turns raw spoken thoughts into crisp, clean written prose.
+
+- **Procedural Audio Chimes**:
+  - Pleasant, soft upward chime when you start dictating.
+  - Soft chime when transcription finishes.
+  - Crisp gentle chime when text is pasted.
+  - 100% procedurally synthesized (zero bulky audio assets).
+
+- **System-Wide Auto-Paste**:
+  - Press `Ctrl + Alt + Space` anywhere in Windows (Word, Notepad, Slack, Discord, VS Code, Browser, WhatsApp).
+  - Speak naturally, press `Ctrl + Alt + Space` again.
+  - Text is instantly typed directly where your cursor is.
+
 - **100% Offline & Private**:
-  - Runs locally on your CPU using quantized `faster-whisper` models (`base.en`, `tiny.en`, `small.en`).
-  - No audio leaves your computer.
+  - Runs locally on your CPU using quantized `faster-whisper` models (`base.en`, `tiny.en`).
+  - Sub-second inference time (**~0.20s**). No audio ever leaves your machine.
 - **Audio & Video File Transcriber**:
   - Drag & drop local media (`.mp3`, `.wav`, `.m4a`, `.mp4`, `.mkv`).
   - Subtitle generation and export to **TXT** or **SRT**.

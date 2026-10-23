@@ -4,7 +4,7 @@ from pynput import keyboard
 
 
 class HotkeyManager:
-    """Manages system-wide global hotkeys for dictation."""
+    """Manages system-wide global hotkeys with both Toggle and Push-to-Talk capabilities."""
 
     def __init__(
         self,
@@ -14,7 +14,7 @@ class HotkeyManager:
         on_release_stop: Optional[Callable[[], None]] = None,
         mode: str = "toggle",
     ):
-        self.hotkey_str = hotkey_str
+        self.hotkey_str = hotkey_str.strip()
         self.on_toggle = on_toggle
         self.on_press_start = on_press_start
         self.on_release_stop = on_release_stop
@@ -33,13 +33,26 @@ class HotkeyManager:
         if self._is_running:
             return
 
-        hotkey_map = {self.hotkey_str: self._handle_trigger}
-
-        self._hotkey_listener = keyboard.GlobalHotKeys(hotkey_map)
-        self._hotkey_listener.daemon = True
-        self._hotkey_listener.start()
-        self._is_running = True
-        print(f"[HotkeyManager] Global hotkey active: {self.hotkey_str} (mode: {self.mode})")
+        try:
+            hotkey_map = {self.hotkey_str: self._handle_trigger}
+            self._hotkey_listener = keyboard.GlobalHotKeys(hotkey_map)
+            self._hotkey_listener.daemon = True
+            self._hotkey_listener.start()
+            self._is_running = True
+            print(f"[HotkeyManager] Wispr Flow style hotkey active: {self.hotkey_str} (mode: {self.mode})")
+        except Exception as e:
+            print(f"[HotkeyManager] Could not register hotkey '{self.hotkey_str}': {e}")
+            # Fallback to standard Ctrl+Space or Ctrl+Alt+Space
+            try:
+                fallback_str = "<ctrl>+<space>"
+                hotkey_map = {fallback_str: self._handle_trigger}
+                self._hotkey_listener = keyboard.GlobalHotKeys(hotkey_map)
+                self._hotkey_listener.daemon = True
+                self._hotkey_listener.start()
+                self._is_running = True
+                print(f"[HotkeyManager] Registered fallback hotkey: {fallback_str}")
+            except Exception as e2:
+                print(f"[HotkeyManager] Fallback failed: {e2}")
 
     def stop(self) -> None:
         """Stops the global hotkey listener."""
