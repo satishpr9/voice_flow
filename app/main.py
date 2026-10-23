@@ -12,6 +12,7 @@ from app.core.stt_engine import STTEngine
 from app.core.text_injector import TextInjector
 from app.core.hotkey_manager import HotkeyManager
 from app.core.text_cleaner import TextCleaner
+from app.core.ai_service import AIService
 from app.core.streaming_transcriber import StreamingTranscriber
 from app.utils.db import HistoryDatabase
 from app.utils.sound_effects import SoundEffects
@@ -23,25 +24,46 @@ from app.ui.tray_icon import SystemTrayManager
 class TranscriptionWorker(QObject):
     finished = Signal(str, float) # transcript text, duration
 
-    def __init__(self, stt_engine: STTEngine, clean_speech: bool = True):
+    def __init__(self, stt_engine: STTEngine, ai_service: AIService, clean_speech: bool = True):
         super().__init__()
         self.stt_engine = stt_engine
+        self.ai_service = ai_service
         self.clean_speech = clean_speech
 
     def transcribe(self, audio_data, duration: float):
         def _task():
             try:
                 t0 = time.time()
-                raw_text = self.stt_engine.transcribe_audio(audio_data)
-                
-                # Apply Wispr Flow intelligent text cleanup
-                if self.clean_speech and raw_text:
-                    cleaned_text = TextCleaner.clean(raw_text)
-                else:
-                    cleaned_text = raw_text
+                final_text = ""
 
-                print(f"[STT] Transcribed & cleaned in {time.time() - t0:.2f}s: '{cleaned_text}'")
-                self.finished.emit(cleaned_text, duration)
+                # 1. Check if Direct Omni Audio mode is configured
+                if (
+                    self.ai_service.config.ai_enabled
+                    and self.ai_service.config.ai_mode == "omni_audio"
+                    and self.ai_service.config.ai_api_key.strip()
+                ):
+                    omni_result = self.ai_service.transcribe_omni_audio(audio_data)
+                    if omni_result:
+                        final_text = omni_result
+
+                # 2. If not omni or omni returned empty, use local STT engine
+                if not final_text:
+                    raw_text = self.stt_engine.transcribe_audio(audio_data)
+                    if not raw_text:
+                        self.finished.emit("", duration)
+                        return
+
+                    # 3. Apply AI Polish (MiMo / Qwen / Groq) or local regex TextCleaner
+                    if self.clean_speech:
+                        if self.ai_service.config.ai_enabled and self.ai_service.config.ai_api_key.strip():
+                            final_text = self.ai_service.polish_text(raw_text)
+                        else:
+                            final_text = TextCleaner.clean(raw_text)
+                    else:
+                        final_text = raw_text
+
+                print(f"[STT] Dictation processed in {time.time() - t0:.2f}s: '{final_text}'")
+                self.finished.emit(final_text, duration)
             except Exception as e:
                 print(f"[STT] Transcription error: {e}")
                 self.finished.emit("", duration)
@@ -87,13 +109,14 @@ class FlowApp(QObject):
             interval=0.55,
         )
 
+        self.ai_service = AIService(self.config)
         self.text_injector = TextInjector()
-        self.worker = TranscriptionWorker(self.stt_engine, clean_speech=self.config.clean_speech)
+        self.worker = TranscriptionWorker(self.stt_engine, self.ai_service, clean_speech=self.config.clean_speech)
         self.worker.finished.connect(self._on_transcription_finished)
 
         # UI Components
         self.pill = FloatingPill()
-        self.main_window = MainWindow(self.config, self.stt_engine, self.db)
+        self.main_window = MainWindow(self.config, self.stt_engine, self.db, self.ai_service)
         self.tray = SystemTrayManager()
 
         # Wire Signals

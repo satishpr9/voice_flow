@@ -56,9 +56,10 @@ def main():
             t1 = time.time()
             text = engine.transcribe_audio(audio)
             
-            # Apply Wispr Flow text cleanup
-            from app.core.text_cleaner import TextCleaner
-            cleaned_text = TextCleaner.clean(text)
+            # Apply Wispr Flow text cleanup (AI Smart Polish or regex cleaner)
+            from app.core.ai_service import AIService
+            ai_service = AIService(config)
+            cleaned_text = ai_service.polish_text(text)
             elapsed = time.time() - t1
             
             if cleaned_text:

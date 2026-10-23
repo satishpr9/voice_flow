@@ -1,6 +1,7 @@
 import os
 import time
-from typing import Optional, List, Dict, Generator
+import threading
+from typing import Optional, List, Dict
 from pathlib import Path
 import numpy as np
 
@@ -14,7 +15,7 @@ except ImportError:
 
 
 class STTEngine:
-    """Manages local Whisper model lifecycle and audio transcription."""
+    """Manages local Whisper models for both real-time streaming and high-accuracy final transcription."""
 
     def __init__(
         self,
@@ -29,31 +30,71 @@ class STTEngine:
         self.models_dir = Path(models_dir)
         self.models_dir.mkdir(parents=True, exist_ok=True)
 
-        self._model: Optional[WhisperModel] = None
-        self._is_loading = False
-
-    @property
-    def is_loaded(self) -> bool:
-        return self._model is not None
+        self._main_model: Optional[WhisperModel] = None
+        self._live_model: Optional[WhisperModel] = None
+        self._lock = threading.Lock()
 
     def load_model(self) -> None:
-        """Loads or downloads the Whisper model into RAM."""
-        if self._model is not None:
-            return
+        """Pre-loads both the main model and the ultra-fast live streaming model."""
+        with self._lock:
+            if self._main_model is None:
+                print(f"[STTEngine] Loading main model '{self.model_size}'...")
+                t0 = time.time()
+                self._main_model = WhisperModel(
+                    model_size_or_path=self.model_size,
+                    device=self.device,
+                    compute_type=self.compute_type,
+                    download_root=str(self.models_dir),
+                    cpu_threads=2,
+                )
+                print(f"[STTEngine] Main model loaded in {time.time() - t0:.2f}s.")
 
-        self._is_loading = True
-        print(f"[STTEngine] Loading model '{self.model_size}' (device={self.device}, compute_type={self.compute_type})...")
-        t0 = time.time()
+            if self._live_model is None:
+                # Always use tiny.en for sub-400ms real-time live transcribing
+                print("[STTEngine] Loading real-time live streaming model 'tiny.en'...")
+                t1 = time.time()
+                self._live_model = WhisperModel(
+                    model_size_or_path="tiny.en",
+                    device=self.device,
+                    compute_type="int8",
+                    download_root=str(self.models_dir),
+                    cpu_threads=2,
+                )
+                print(f"[STTEngine] Live model loaded in {time.time() - t1:.2f}s.")
 
-        self._model = WhisperModel(
-            model_size_or_path=self.model_size,
-            device=self.device,
-            compute_type=self.compute_type,
-            download_root=str(self.models_dir),
-            cpu_threads=4,
-        )
-        self._is_loading = False
-        print(f"[STTEngine] Model loaded in {time.time() - t0:.2f} seconds.")
+    def transcribe_live_chunk(self, audio: np.ndarray) -> str:
+        """Ultra-fast (sub-400ms) live streaming partial transcription."""
+        if audio is None or len(audio) < 6400: # at least 0.4s
+            return ""
+
+        # Check volume energy - skip pure silence to preserve CPU
+        rms = float(np.sqrt(np.mean(audio[-8000:]**2))) if len(audio) >= 8000 else float(np.sqrt(np.mean(audio**2)))
+        if rms < 0.0025:
+            return ""
+
+        if self._live_model is None:
+            self.load_model()
+
+        # Limit window to the last 12 seconds max for instant responsiveness
+        max_samples = 16000 * 12
+        audio_slice = audio[-max_samples:] if len(audio) > max_samples else audio
+
+        try:
+            # Fast greedy pass with no VAD filter (so live words are not dropped)
+            segments, _ = self._live_model.transcribe(
+                audio_slice,
+                language="en",
+                beam_size=1,
+                best_of=1,
+                vad_filter=False, # CRITICAL: False allows continuous live words
+                without_timestamps=True,
+                temperature=0.0,
+            )
+            texts = [seg.text.strip() for seg in segments if seg.text.strip()]
+            return " ".join(texts).strip()
+        except Exception as e:
+            print(f"[STTEngine] Live chunk error: {e}")
+            return ""
 
     def transcribe_audio(
         self,
@@ -61,56 +102,21 @@ class STTEngine:
         language: Optional[str] = "en",
         vad_filter: bool = True,
     ) -> str:
-        """Transcribes a 1D float32 numpy audio buffer (sampled at 16000Hz).
-        Returns the combined transcribed text.
-        """
+        """High-accuracy final transcription executed upon stopping dictation."""
         if audio is None or len(audio) == 0:
             return ""
 
-        # Make sure model is ready
-        if self._model is None:
+        if self._main_model is None:
             self.load_model()
 
-        # Run transcription with built-in Silero VAD to strip leading/trailing silence
-        segments, info = self._model.transcribe(
+        segments, info = self._main_model.transcribe(
             audio,
-            language=language,
-            beam_size=1,            # 1 = greedy (fastest for real-time dictation)
-            best_of=1,
-            vad_filter=vad_filter,
-            vad_parameters=dict(min_silence_duration_ms=400),
-            condition_on_previous_text=False,
-        )
-
-        texts = [seg.text.strip() for seg in segments if seg.text.strip()]
-        result = " ".join(texts).strip()
-        return result
-
-    def transcribe_live_chunk(
-        self,
-        audio: np.ndarray,
-        language: Optional[str] = "en",
-    ) -> str:
-        """Fast low-latency inference for live real-time partial streaming."""
-        if audio is None or len(audio) < 8000: # at least 0.5s of audio
-            return ""
-
-        if self._model is None:
-            self.load_model()
-
-        # Limit window to recent 10 seconds for real-time responsiveness
-        max_samples = 16000 * 10
-        audio_slice = audio[-max_samples:] if len(audio) > max_samples else audio
-
-        segments, _ = self._model.transcribe(
-            audio_slice,
             language=language,
             beam_size=1,
             best_of=1,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=250),
+            vad_filter=vad_filter,
+            vad_parameters=dict(min_silence_duration_ms=350),
             condition_on_previous_text=False,
-            without_timestamps=True,
         )
 
         texts = [seg.text.strip() for seg in segments if seg.text.strip()]
@@ -122,17 +128,17 @@ class STTEngine:
         language: Optional[str] = None,
         vad_filter: bool = True,
     ) -> List[Dict]:
-        """Transcribes an audio or video file, returning detailed segments with timestamps."""
+        """Transcribes an audio or video file with timestamps."""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        if self._model is None:
+        if self._main_model is None:
             self.load_model()
 
-        segments, info = self._model.transcribe(
+        segments, info = self._main_model.transcribe(
             file_path,
             language=language,
-            beam_size=5,            # Higher beam size for files to maximize accuracy
+            beam_size=5,
             vad_filter=vad_filter,
         )
 

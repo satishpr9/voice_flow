@@ -17,11 +17,10 @@ Powered by **faster-whisper (CTranslate2 INT8)**, **PySide6 (Qt6)**, and an inte
   - Built-in `✕` cancel button to discard audio on the fly.
   - Smooth mouse drag-and-drop to place the pill anywhere on your screen.
 
-- **Wispr Flow AI Text Polish**:
-  - Automatically eliminates verbal fillers: *"um"*, *"uh"*, *"you know"*, *"like"*, *"basically"*.
-  - Fixes stutter repetitions (*"the the"* -> *"the"*).
-  - Normalizes punctuation, capitalizes sentences, and capitalizes *"I"*.
-  - Turns raw spoken thoughts into crisp, clean written prose.
+- **Wispr Flow AI Text Polish (Dual Mode: Offline Regex + Cloud LLM)**:
+  - **Local Offline Mode (Default)**: Automatically eliminates verbal fillers (*"um"*, *"uh"*, *"you know"*), fixes stutters, and normalizes capitalization locally with zero network calls.
+  - **Cloud AI Mode (MiMo / Qwen / Groq)**: Integrates cutting-edge fast models like `xiaomi/mimo-v2.6-flash` or `qwen/qwen3.8-omni-flash` for intelligent, context-aware rewriting, bullet points, emails, and natural prose.
+  - **Resilient Fallback**: If the network is down or API fails, Flow instantly falls back to local regex so your dictation is never lost.
 
 - **Procedural Audio Chimes**:
   - Pleasant, soft upward chime when you start dictating.

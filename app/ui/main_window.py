@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTextEdit, QTabWidget, QComboBox, QCheckBox,
     QLineEdit, QFileDialog, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QGroupBox, QProgressBar
+    QHeaderView, QMessageBox, QGroupBox, QProgressBar, QScrollArea
 )
 
 from app.config import AppConfig
@@ -39,11 +39,12 @@ class MainWindow(QMainWindow):
 
     dictation_requested = Signal()
 
-    def __init__(self, config: AppConfig, stt_engine, db: HistoryDatabase):
+    def __init__(self, config: AppConfig, stt_engine, db: HistoryDatabase, ai_service=None):
         super().__init__()
         self.config = config
         self.stt_engine = stt_engine
         self.db = db
+        self.ai_service = ai_service
 
         self.setWindowTitle("Flow STT - Voice Dictation & Audio Studio")
         self.resize(850, 620)
@@ -288,6 +289,10 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(tab, "History")
 
     def _build_settings_tab(self):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -297,21 +302,94 @@ class MainWindow(QMainWindow):
         header.setStyleSheet("font-size: 18px; font-weight: bold; color: #60A5FA;")
         layout.addWidget(header)
 
-        # Model selection
-        group_model = QGroupBox("Whisper Model")
+        # 1. Local Whisper Model
+        group_model = QGroupBox("Local Speech Engine (faster-whisper INT8)")
         model_layout = QVBoxLayout(group_model)
         self.combo_model = QComboBox()
         self.combo_model.addItems(["tiny.en", "base.en", "small.en", "tiny", "base", "small"])
         self.combo_model.setCurrentText(self.config.model_size)
-        model_layout.addWidget(QLabel("Select Model (base.en recommended for speed & accuracy on CPU):"))
+        model_layout.addWidget(QLabel("Select Local Model (base.en recommended for speed & accuracy on CPU):"))
         model_layout.addWidget(self.combo_model)
         layout.addWidget(group_model)
 
-        # Wispr Flow Intelligence Group
-        group_wispr = QGroupBox("Wispr Flow AI & Audio Feedback")
+        # 2. Wispr Flow AI Cloud Intelligence Group
+        group_ai = QGroupBox("Wispr Flow Cloud AI Intelligence (MiMo / Qwen / Groq)")
+        ai_layout = QVBoxLayout(group_ai)
+        ai_layout.setSpacing(10)
+
+        self.check_ai_enabled = QCheckBox("Enable Cloud AI Intelligence (Wispr Flow Smart LLM Polish)")
+        self.check_ai_enabled.setChecked(self.config.ai_enabled)
+        self.check_ai_enabled.setStyleSheet("font-weight: bold; color: #38BDF8; font-size: 13px;")
+        ai_layout.addWidget(self.check_ai_enabled)
+
+        # Model selection row
+        row_model = QHBoxLayout()
+        row_model.addWidget(QLabel("AI Model:"))
+        self.combo_ai_model = QComboBox()
+        self.combo_ai_model.setEditable(True)
+        model_presets = [
+            "xiaomi/mimo-v2.6-flash",
+            "qwen/qwen3.8-omni-flash",
+            "groq/llama-3.1-8b-instant",
+            "openai/gpt-4o-mini",
+            "google/gemini-2.0-flash",
+        ]
+        if self.config.ai_model and self.config.ai_model not in model_presets:
+            self.combo_ai_model.addItem(self.config.ai_model)
+        for m in model_presets:
+            self.combo_ai_model.addItem(m)
+        self.combo_ai_model.setCurrentText(self.config.ai_model)
+        row_model.addWidget(self.combo_ai_model, 1)
+        ai_layout.addLayout(row_model)
+
+        # Mode row
+        row_mode = QHBoxLayout()
+        row_mode.addWidget(QLabel("Execution Mode:"))
+        self.combo_ai_mode = QComboBox()
+        self.combo_ai_mode.addItem("Text Polish (Whisper STT + AI LLM formatting - Fast & Snappy)")
+        self.combo_ai_mode.addItem("Omni Audio (Direct Audio to Omni Multimodal Model)")
+        if self.config.ai_mode == "omni_audio":
+            self.combo_ai_mode.setCurrentIndex(1)
+        else:
+            self.combo_ai_mode.setCurrentIndex(0)
+        row_mode.addWidget(self.combo_ai_mode, 1)
+        ai_layout.addLayout(row_mode)
+
+        # Base URL row
+        row_url = QHBoxLayout()
+        row_url.addWidget(QLabel("API Base URL:"))
+        self.edit_ai_base_url = QLineEdit(self.config.ai_base_url)
+        self.edit_ai_base_url.setPlaceholderText("https://openrouter.ai/api/v1")
+        row_url.addWidget(self.edit_ai_base_url, 1)
+        ai_layout.addLayout(row_url)
+
+        # API Key row
+        row_key = QHBoxLayout()
+        row_key.addWidget(QLabel("API Key:"))
+        self.edit_ai_key = QLineEdit(self.config.ai_api_key)
+        self.edit_ai_key.setEchoMode(QLineEdit.Password)
+        self.edit_ai_key.setPlaceholderText("sk-or-v1-... or your provider key")
+        row_key.addWidget(self.edit_ai_key, 1)
+        ai_layout.addLayout(row_key)
+
+        # Test Connection button & status
+        test_row = QHBoxLayout()
+        self.btn_test_ai = QPushButton("⚡ Test Connection")
+        self.btn_test_ai.setObjectName("secondaryBtn")
+        self.btn_test_ai.clicked.connect(self._test_ai_connection)
+        self.lbl_test_status = QLabel("")
+        self.lbl_test_status.setStyleSheet("color: #94A3B8; font-size: 11px;")
+        test_row.addWidget(self.btn_test_ai)
+        test_row.addWidget(self.lbl_test_status, 1)
+        ai_layout.addLayout(test_row)
+
+        layout.addWidget(group_ai)
+
+        # 3. Text Polish & Feedback
+        group_wispr = QGroupBox("Wispr Flow Polish & Audio Feedback")
         wispr_layout = QVBoxLayout(group_wispr)
 
-        self.check_clean_speech = QCheckBox("Wispr Flow Polish (auto-remove 'um', 'uh', stutters, fix capitalization)")
+        self.check_clean_speech = QCheckBox("Wispr Flow Polish (auto-remove 'um', 'uh', stutters, fix punctuation)")
         self.check_clean_speech.setChecked(self.config.clean_speech)
         wispr_layout.addWidget(self.check_clean_speech)
 
@@ -321,7 +399,7 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(group_wispr)
 
-        # Hotkey & Integration
+        # 4. Hotkey & Integration
         group_hotkey = QGroupBox("Dictation & Hotkey")
         hotkey_layout = QVBoxLayout(group_hotkey)
 
@@ -340,22 +418,14 @@ class MainWindow(QMainWindow):
         hotkey_layout.addWidget(self.check_clipboard)
         layout.addWidget(group_hotkey)
 
-        # Cloud API (Optional)
-        group_cloud = QGroupBox("Cloud Speed-Up (Optional)")
-        cloud_layout = QVBoxLayout(group_cloud)
-        cloud_layout.addWidget(QLabel("Groq API Key (Optional for <0.5s cloud transcription):"))
-        self.edit_groq = QLineEdit(self.config.groq_api_key)
-        self.edit_groq.setEchoMode(QLineEdit.Password)
-        cloud_layout.addWidget(self.edit_groq)
-        layout.addWidget(group_cloud)
-
         # Save Button
         btn_save = QPushButton("Save Settings")
         btn_save.clicked.connect(self._save_settings)
         layout.addWidget(btn_save)
 
         layout.addStretch()
-        self.tabs.addTab(tab, "Settings")
+        scroll.setWidget(tab)
+        self.tabs.addTab(scroll, "Settings")
 
     def _copy_dictation(self):
         text = self.dictation_box.toPlainText()
@@ -420,7 +490,10 @@ class MainWindow(QMainWindow):
         self.btn_transcribe_file.setEnabled(True)
 
         if self.config.clean_speech:
-            full_text = TextCleaner.clean(full_text)
+            if self.ai_service and self.config.ai_enabled and self.config.ai_api_key.strip():
+                full_text = self.ai_service.polish_text(full_text)
+            else:
+                full_text = TextCleaner.clean(full_text)
 
         self._last_file_segments = segments
         self.file_result_box.setPlainText(full_text)
@@ -509,6 +582,40 @@ class MainWindow(QMainWindow):
             self.db.clear_all()
             self.refresh_history()
 
+    def _test_ai_connection(self):
+        if not self.ai_service:
+            from app.core.ai_service import AIService
+            self.ai_service = AIService(self.config)
+
+        # Update test config with current UI inputs
+        test_config = AppConfig(
+            ai_enabled=True,
+            ai_model=self.combo_ai_model.currentText().strip(),
+            ai_base_url=self.edit_ai_base_url.text().strip(),
+            ai_api_key=self.edit_ai_key.text().strip(),
+            ai_mode="omni_audio" if "omni" in self.combo_ai_mode.currentText().lower() else "text_polish",
+        )
+        self.ai_service.update_config(test_config)
+        self.lbl_test_status.setText("Testing connection...")
+        self.lbl_test_status.setStyleSheet("color: #FBBF24; font-size: 11px;")
+        self.btn_test_ai.setEnabled(False)
+
+        def _worker():
+            success, msg = self.ai_service.test_connection()
+            def _update():
+                self.btn_test_ai.setEnabled(True)
+                if success:
+                    self.lbl_test_status.setText(f"✓ {msg}")
+                    self.lbl_test_status.setStyleSheet("color: #4ADE80; font-size: 11px; font-weight: bold;")
+                else:
+                    self.lbl_test_status.setText(f"✗ {msg}")
+                    self.lbl_test_status.setStyleSheet("color: #F87171; font-size: 11px;")
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, _update)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True).start()
+
     def _save_settings(self):
         self.config.model_size = self.combo_model.currentText()
         self.config.hotkey = self.edit_hotkey.text().strip()
@@ -516,6 +623,16 @@ class MainWindow(QMainWindow):
         self.config.copy_to_clipboard = self.check_clipboard.isChecked()
         self.config.clean_speech = self.check_clean_speech.isChecked()
         self.config.play_chimes = self.check_play_chimes.isChecked()
-        self.config.groq_api_key = self.edit_groq.text().strip()
+
+        # AI Cloud Settings
+        self.config.ai_enabled = self.check_ai_enabled.isChecked()
+        self.config.ai_model = self.combo_ai_model.currentText().strip()
+        self.config.ai_base_url = self.edit_ai_base_url.text().strip()
+        self.config.ai_api_key = self.edit_ai_key.text().strip()
+        self.config.ai_mode = "omni_audio" if "omni" in self.combo_ai_mode.currentText().lower() else "text_polish"
+
         self.config.save()
+        if self.ai_service:
+            self.ai_service.update_config(self.config)
+
         QMessageBox.information(self, "Settings Saved", "Preferences updated successfully!")

@@ -31,6 +31,13 @@ class AppConfig:
     groq_api_key: str = ""
     use_cloud_stt: bool = False
 
+    # AI Cloud Intelligence (Wispr Flow Pro - MiMo / Qwen-Omni / Groq / OpenAI)
+    ai_enabled: bool = False
+    ai_model: str = "xiaomi/mimo-v2.6-flash"
+    ai_base_url: str = "https://openrouter.ai/api/v1"
+    ai_api_key: str = ""
+    ai_mode: str = "text_polish" # "text_polish" (Whisper + LLM Polish) or "omni_audio" (Direct Audio Omni)
+
     @classmethod
     def load(cls, file_path: Path = CONFIG_FILE_PATH) -> "AppConfig":
         if file_path.exists():
