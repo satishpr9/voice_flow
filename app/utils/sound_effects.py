@@ -29,7 +29,7 @@ class SoundEffects:
 
     @classmethod
     def play_start(cls):
-        """Soft upward chime on recording start (Wispr Flow style)."""
+        """Soft upward chime on recording start."""
         cls._play_tone([587.33, 880.0], duration_sec=0.09) # D5 -> A5
 
     @classmethod

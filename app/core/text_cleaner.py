@@ -3,7 +3,7 @@ from typing import Optional
 
 
 class TextCleaner:
-    """Polishes transcribed speech into natural, clean written text (Wispr Flow style).
+    """Polishes transcribed speech into natural, clean written text.
     Removes verbal fillers, stutters, self-corrections, and normalizes capitalization/punctuation.
     """
 

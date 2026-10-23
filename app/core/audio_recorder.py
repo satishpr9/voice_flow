@@ -1,7 +1,10 @@
 import threading
-from typing import Callable, Optional, List, Dict
+from typing import TYPE_CHECKING, Callable, Optional, List, Dict
 import numpy as np
 import sounddevice as sd
+
+if TYPE_CHECKING:
+    from app.core.noise_suppressor import NoiseSuppressor
 
 
 class AudioRecorder:
@@ -13,11 +16,13 @@ class AudioRecorder:
         channels: int = 1,
         device_index: Optional[int] = None,
         level_callback: Optional[Callable[[float], None]] = None,
+        noise_suppressor: Optional["NoiseSuppressor"] = None,
     ):
         self.sample_rate = sample_rate
         self.channels = channels
         self.device_index = device_index
         self.level_callback = level_callback
+        self.noise_suppressor = noise_suppressor  # may be None (suppression disabled)
 
         self._stream: Optional[sd.InputStream] = None
         self._is_recording = False
@@ -57,6 +62,10 @@ class AudioRecorder:
         # indata has shape (frames, channels), float32 normalized [-1.0, 1.0]
         chunk = indata[:, 0].copy()
 
+        # Stage 2 — Real-time RNNoise suppression (stateful, frame-by-frame)
+        if self.noise_suppressor is not None:
+            chunk = self.noise_suppressor.suppress_frame(chunk)
+
         with self._lock:
             self._frames.append(chunk)
 
@@ -77,6 +86,10 @@ class AudioRecorder:
                 return
             self._frames = []
             self._is_recording = True
+
+        # Reset RNNoise RNN memory so each session starts with a clean state
+        if self.noise_suppressor is not None:
+            self.noise_suppressor.reset()
 
         self._stream = sd.InputStream(
             samplerate=self.sample_rate,

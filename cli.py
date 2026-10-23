@@ -56,14 +56,18 @@ def main():
             t1 = time.time()
             text = engine.transcribe_audio(audio)
             
-            # Apply Wispr Flow text cleanup (AI Smart Polish or regex cleaner)
+            # Apply text cleanup (AI Smart Polish or regex cleaner)
             from app.core.ai_service import AIService
             ai_service = AIService(config)
-            cleaned_text = ai_service.polish_text(text)
+            cleaned_text = ai_service.polish_text(
+                text,
+                style=config.flow_style,
+                custom_vocabulary=config.custom_vocabulary,
+            )
             elapsed = time.time() - t1
             
             if cleaned_text:
-                print(f"\n[WISPR FLOW TRANSCRIPT] ({elapsed:.2f}s):")
+                print(f"\n[TRANSCRIPT] ({elapsed:.2f}s):")
                 print(f"  \"{cleaned_text}\"\n")
                 db.save_record(text=cleaned_text, duration_seconds=duration, model_used=config.model_size)
                 

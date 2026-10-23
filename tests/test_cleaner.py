@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.text_cleaner import TextCleaner
 
 def test_cleaner():
-    print("Testing Wispr Flow style TextCleaner...")
+    print("Testing TextCleaner...")
 
     # Test 1: Verbal Fillers
     raw1 = "um so basically I wanted to ask uh if you are free tomorrow"

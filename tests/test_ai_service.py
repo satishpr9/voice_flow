@@ -48,6 +48,23 @@ def test_ai_service_fallback():
     omni_res = service2.transcribe_omni_audio(dummy_audio)
     assert omni_res is None
 
+    # Case 5: System prompt building with active context & vocabulary
+    from app.utils.window_context import WindowContextDetector
+    ctx = WindowContextDetector._categorize("code.exe", "main.py - VS Code")
+    prompt = service.test_build_prompt = service._build_system_prompt(
+        service.SYSTEM_POLISH_PROMPT,
+        context=ctx,
+        style="auto",
+        custom_vocabulary=["PySide6", "Kubernetes"],
+    )
+    assert "Active Application: VS Code" in prompt
+    assert "Code Editor" in prompt
+    assert "PySide6, Kubernetes" in prompt
+
+    # Case 6: Bullet formatting style
+    bullet_prompt = service._build_system_prompt(service.SYSTEM_POLISH_PROMPT, style="bullets")
+    assert "Bullet Points" in bullet_prompt
+
     print("\nAIService unit tests PASSED!")
 
 

@@ -9,6 +9,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.spec
+.pytest_cache/
 
 # Build & packaging artifacts
 build/
@@ -22,10 +23,13 @@ models/
 *.m4a
 *.tmp
 
-# User settings & secrets
+# User settings, secrets & databases
 .env
+config.json
 config.local.json
-history.db
+*.db
+*.sqlite
+*.sqlite3
 
 # IDE & OS files
 .vscode/

@@ -58,22 +58,18 @@ class FluidWaveform(QWidget):
             x = start_x + i * (bar_w + gap)
             y = (h - bar_h) / 2.0
 
-            # Gradient from violet-blue to cyan-purple (Wispr Flow gradient)
-            grad = QLinearGradient(x, y, x, y + bar_h)
+            # Clean Dark + White minimalist waveform bars
             if self.target_level > 0.12:
-                grad.setColorAt(0.0, QColor(139, 92, 246))  # Vibrant Purple (#8B5CF6)
-                grad.setColorAt(1.0, QColor(59, 130, 246))  # Electric Blue (#3B82F6)
+                bar_color = QColor(255, 255, 255, 235)  # Pure White
             else:
-                grad.setColorAt(0.0, QColor(100, 116, 139)) # Muted Slate
-                grad.setColorAt(1.0, QColor(71, 85, 105))
-
+                bar_color = QColor(160, 160, 160, 170)  # Soft Gray
             painter.setPen(Qt.NoPen)
-            painter.setBrush(QBrush(grad))
+            painter.setBrush(QBrush(bar_color))
             painter.drawRoundedRect(QRectF(x, y, bar_w, bar_h), 1.75, 1.75)
 
 
 class FloatingPill(QWidget):
-    """Wispr Flow style minimalist floating capsule widget.
+    """Minimalist floating capsule widget.
     
     Features:
     - Frosted dark glassmorphism with glowing border
@@ -105,12 +101,13 @@ class FloatingPill(QWidget):
         self.current_state = "idle" # "recording", "processing", "success", "idle"
         self.status_text = "Listening..."
         self.live_text = ""
+        self.app_badge = ""
         self.elapsed_seconds = 0
         self._pulse_phase = 0.0
         self._drag_pos = QPoint()
 
-        # Capsule size with room for live streaming transcript
-        self.setFixedSize(380, 48)
+        # Capsule size with room for live streaming transcript & app badge
+        self.setFixedSize(410, 48)
 
         # Drop shadow for floating glass effect
         shadow = QGraphicsDropShadowEffect(self)
@@ -135,7 +132,7 @@ class FloatingPill(QWidget):
 
         # Waveform visualizer child widget positioned on the right
         self.waveform = FluidWaveform(self, num_bars=6)
-        self.waveform.move(292, 10)
+        self.waveform.move(322, 10)
 
         # Internal signal wiring
         self.state_changed.connect(self._apply_state)
@@ -161,9 +158,10 @@ class FloatingPill(QWidget):
         self.elapsed_seconds += 1
         self.update()
 
-    def set_recording(self):
+    def set_recording(self, app_badge: str = ""):
         self.elapsed_seconds = 0
         self.live_text = ""
+        self.app_badge = app_badge
         self.clock_timer.start(1000)
         self.state_changed.emit("recording", "Listening...")
 
@@ -218,30 +216,29 @@ class FloatingPill(QWidget):
         h = float(self.height())
         radius = h / 2.0
 
-        # 1. Dark Acrylic Frosted Glass Background (#0F1117 with 95% opacity)
+        # 1. Dark Clean Background (#121212 with 96% opacity)
         bg_path = QPainterPath()
         bg_path.addRoundedRect(QRectF(1, 1, w - 2, h - 2), radius, radius)
 
-        bg_color = QColor(15, 17, 23, 242)
+        bg_color = QColor(18, 18, 18, 245)
         painter.fillPath(bg_path, QBrush(bg_color))
 
-        # 2. Glowing Border (Wispr Flow subtle iridescent border)
-        glow_val = (math.sin(self._pulse_phase) + 1.0) / 2.0 # 0.0 to 1.0
+        # 2. Clean White & Dark Border
+        glow_val = (math.sin(self._pulse_phase) + 1.0) / 2.0  # 0.0 to 1.0
         if self.current_state == "recording":
-            border_color = QColor(139, 92, 246, int(70 + glow_val * 90)) # Pulsing violet
+            border_color = QColor(255, 255, 255, int(70 + glow_val * 85))  # White border glow
         elif self.current_state == "processing":
-            border_color = QColor(59, 130, 246, int(90 + glow_val * 110)) # Pulsing electric blue
+            border_color = QColor(255, 255, 255, int(85 + glow_val * 95))
         else:
-            border_color = QColor(34, 197, 94, 200) # Crisp green
+            border_color = QColor(255, 255, 255, 180)
 
         border_pen = QPen(border_color, 1.2)
         painter.strokePath(bg_path, border_pen)
 
         # 3. Status Indicator Dot or Icon
         if self.current_state == "recording":
-            # Pulsing Red/Coral recording dot
             pulse_radius = 4.0 + glow_val * 1.5
-            dot_color = QColor(239, 68, 68)
+            dot_color = QColor(255, 255, 255)
             painter.setPen(Qt.NoPen)
             painter.setBrush(QBrush(dot_color))
             painter.drawEllipse(QRectF(16 - pulse_radius, h / 2.0 - pulse_radius, pulse_radius * 2, pulse_radius * 2))
@@ -251,44 +248,68 @@ class FloatingPill(QWidget):
             secs = self.elapsed_seconds % 60
             time_str = f"{mins}:{secs:02d}"
 
-            painter.setPen(QColor(241, 245, 249))
-            font_timer = QFont("Segoe UI", 9, QFont.Bold)
+            painter.setPen(QColor(255, 255, 255))
+            font_timer = QFont("Segoe UI", 10, QFont.Bold)
             painter.setFont(font_timer)
-            painter.drawText(QRectF(26, 0, 42, h), Qt.AlignVCenter | Qt.AlignLeft, time_str)
+            painter.drawText(QRectF(26, 0, 38, h), Qt.AlignVCenter | Qt.AlignLeft, time_str)
+
+            # Active Target App Badge
+            text_start_x = 68.0
+            if self.app_badge:
+                badge_text = self.app_badge[:16]
+                font_badge = QFont("Segoe UI", 9, QFont.Bold)
+                painter.setFont(font_badge)
+                badge_text_w = painter.fontMetrics().horizontalAdvance(badge_text)
+                badge_w = min(95.0, badge_text_w + 14.0)
+                badge_rect = QRectF(text_start_x, (h - 22) / 2.0, badge_w, 22)
+
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QBrush(QColor(36, 36, 36, 230)))
+                painter.drawRoundedRect(badge_rect, 5, 5)
+
+                painter.setPen(QColor(255, 255, 255))
+                painter.drawText(badge_rect, Qt.AlignCenter, badge_text)
+                text_start_x += badge_w + 8.0
 
             # Center: Real-time Live Streaming Transcript
+            max_text_w = max(60.0, w - text_start_x - 100.0)
             if self.live_text:
-                painter.setPen(QColor(248, 250, 252))
-                font_live = QFont("Segoe UI", 9, QFont.DemiBold)
+                painter.setPen(QColor(255, 255, 255))
+                font_live = QFont("Segoe UI", 10, QFont.DemiBold)
                 painter.setFont(font_live)
-                elided = painter.fontMetrics().elidedText(f'"{self.live_text}"', Qt.ElideLeft, 210)
-                painter.drawText(QRectF(70, 0, 214, h), Qt.AlignVCenter | Qt.AlignLeft, elided)
+                elided = painter.fontMetrics().elidedText(f'"{self.live_text}"', Qt.ElideLeft, int(max_text_w))
+                painter.drawText(QRectF(text_start_x, 0, max_text_w, h), Qt.AlignVCenter | Qt.AlignLeft, elided)
             else:
-                painter.setPen(QColor(148, 163, 184))
-                font_hint = QFont("Segoe UI", 9, QFont.Normal)
+                painter.setPen(QColor(160, 160, 160))
+                font_hint = QFont("Segoe UI", 10, QFont.Normal)
                 painter.setFont(font_hint)
-                painter.drawText(QRectF(70, 0, 214, h), Qt.AlignVCenter | Qt.AlignLeft, "Listening...")
+                painter.drawText(QRectF(text_start_x, 0, max_text_w, h), Qt.AlignVCenter | Qt.AlignLeft, "Listening...")
 
             # Cancel Button '✕' on the far right
-            painter.setPen(QColor(148, 163, 184))
-            font_x = QFont("Segoe UI", 10, QFont.Normal)
+            painter.setPen(QColor(170, 170, 170))
+            font_x = QFont("Segoe UI", 11, QFont.Normal)
             painter.setFont(font_x)
             painter.drawText(QRectF(w - 24, 0, 18, h), Qt.AlignVCenter | Qt.AlignLeft, "✕")
 
         elif self.current_state == "processing":
-            # Shimmering "Flowing..." spinner / dots
-            painter.setPen(QColor(192, 132, 252)) # Light purple
-            font = QFont("Segoe UI", 10, QFont.DemiBold)
+            shimmer_x = ((self._pulse_phase / (2 * math.pi)) * (w + 120)) - 60
+            shimmer_grad = QLinearGradient(shimmer_x - 50, 0, shimmer_x + 50, 0)
+            shimmer_grad.setColorAt(0.0, QColor(255, 255, 255, 0))
+            shimmer_grad.setColorAt(0.5, QColor(255, 255, 255, 75))  # Clean white shimmer
+            shimmer_grad.setColorAt(1.0, QColor(255, 255, 255, 0))
+            painter.fillPath(bg_path, QBrush(shimmer_grad))
+
+            painter.setPen(QColor(255, 255, 255))
+            font = QFont("Segoe UI", 11, QFont.DemiBold)
             painter.setFont(font)
             
             dots = "." * (int(self._pulse_phase * 1.5) % 4)
-            display_text = f"Flowing{dots}"
+            display_text = f"Transcribing{dots}"
             painter.drawText(QRectF(0, 0, w, h), Qt.AlignCenter, display_text)
 
         elif self.current_state == "success":
-            # Checkmark + "Pasted!"
-            painter.setPen(QColor(74, 222, 128)) # Emerald Green
-            font = QFont("Segoe UI", 10, QFont.DemiBold)
+            painter.setPen(QColor(255, 255, 255))
+            font = QFont("Segoe UI", 11, QFont.Bold)
             painter.setFont(font)
             painter.drawText(QRectF(0, 0, w, h), Qt.AlignCenter, f"✓ {self.status_text}")
 
