@@ -35,9 +35,20 @@ def main():
             print("\n🎙️  Recording... Speak now! (Press [ENTER] to stop)")
             t0 = time.time()
             recorder.start_recording()
-            
+
+            from app.core.streaming_transcriber import StreamingTranscriber
+            streamer = StreamingTranscriber(
+                stt_engine=engine,
+                get_buffer_fn=recorder.get_current_buffer,
+                on_partial_text=lambda p: print(f"\r  🎙️ [Live]: {p}...", end="", flush=True),
+                interval=0.5,
+            )
+            streamer.start()
+
             input() # wait for Enter
-            
+
+            streamer.stop()
+            print() # new line
             duration = time.time() - t0
             audio = recorder.stop_recording()
             print(f"Recorded {duration:.2f}s of audio. Transcribing...")

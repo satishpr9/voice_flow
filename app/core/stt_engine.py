@@ -86,6 +86,36 @@ class STTEngine:
         result = " ".join(texts).strip()
         return result
 
+    def transcribe_live_chunk(
+        self,
+        audio: np.ndarray,
+        language: Optional[str] = "en",
+    ) -> str:
+        """Fast low-latency inference for live real-time partial streaming."""
+        if audio is None or len(audio) < 8000: # at least 0.5s of audio
+            return ""
+
+        if self._model is None:
+            self.load_model()
+
+        # Limit window to recent 10 seconds for real-time responsiveness
+        max_samples = 16000 * 10
+        audio_slice = audio[-max_samples:] if len(audio) > max_samples else audio
+
+        segments, _ = self._model.transcribe(
+            audio_slice,
+            language=language,
+            beam_size=1,
+            best_of=1,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=250),
+            condition_on_previous_text=False,
+            without_timestamps=True,
+        )
+
+        texts = [seg.text.strip() for seg in segments if seg.text.strip()]
+        return " ".join(texts).strip()
+
     def transcribe_file(
         self,
         file_path: str,

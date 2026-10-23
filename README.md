@@ -10,6 +10,7 @@ Powered by **faster-whisper (CTranslate2 INT8)**, **PySide6 (Qt6)**, and an inte
 
 - **Frosted Glass Floating Capsule**:
   - Discreet, floating stay-on-top capsule that never steals keyboard focus from your cursor.
+  - **Real-Time Live Streaming Transcripts**: Spoken words stream live directly inside the capsule as you speak.
   - Live animated 60 FPS **fluid audio waveform** that bounces organically with your voice.
   - Live timer display (`0:04`) counting while speaking.
   - Shimmering `Flowing...` transition state and `✓ Pasted!` confirmation.

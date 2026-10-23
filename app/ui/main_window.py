@@ -364,10 +364,27 @@ class MainWindow(QMainWindow):
             pyperclip.copy(text)
             QMessageBox.information(self, "Copied", "Transcript copied to clipboard!")
 
+    def update_live_partial(self, partial_text: str):
+        """Displays real-time live words as they are being spoken."""
+        current = self.dictation_box.toPlainText()
+        lines = [line for line in current.split("\n") if not line.startswith("🎙️ [Live]:")]
+        base_text = "\n".join(lines).strip()
+        if base_text:
+            self.dictation_box.setPlainText(f"{base_text}\n\n🎙️ [Live]: {partial_text}")
+        else:
+            self.dictation_box.setPlainText(f"🎙️ [Live]: {partial_text}")
+
+        # Auto-scroll to end
+        cursor = self.dictation_box.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.dictation_box.setTextCursor(cursor)
+
     def append_dictation_text(self, text: str):
         current = self.dictation_box.toPlainText()
-        if current:
-            self.dictation_box.setPlainText(f"{current}\n\n{text}")
+        lines = [line for line in current.split("\n") if not line.startswith("🎙️ [Live]:")]
+        base_text = "\n".join(lines).strip()
+        if base_text:
+            self.dictation_box.setPlainText(f"{base_text}\n\n{text}")
         else:
             self.dictation_box.setPlainText(text)
         self.refresh_history()

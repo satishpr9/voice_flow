@@ -88,6 +88,13 @@ class AudioRecorder:
         )
         self._stream.start()
 
+    def get_current_buffer(self) -> np.ndarray:
+        """Returns a snapshot of currently recorded audio without stopping the stream."""
+        with self._lock:
+            if not self._frames:
+                return np.array([], dtype=np.float32)
+            return np.concatenate(self._frames, axis=0)
+
     def stop_recording(self) -> np.ndarray:
         """Stops recording and returns the full audio buffer as a 1D float32 numpy array."""
         with self._lock:

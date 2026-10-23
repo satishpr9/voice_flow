@@ -86,6 +86,7 @@ class FloatingPill(QWidget):
 
     state_changed = Signal(str, str) # state ("recording", "processing", "success", "idle")
     level_updated = Signal(float)
+    live_text_updated = Signal(str)
     cancel_requested = Signal()
 
     def __init__(self):
@@ -103,17 +104,18 @@ class FloatingPill(QWidget):
 
         self.current_state = "idle" # "recording", "processing", "success", "idle"
         self.status_text = "Listening..."
+        self.live_text = ""
         self.elapsed_seconds = 0
         self._pulse_phase = 0.0
         self._drag_pos = QPoint()
 
-        # Size matching Wispr Flow capsule
-        self.setFixedSize(236, 46)
+        # Capsule size with room for live streaming transcript
+        self.setFixedSize(380, 48)
 
         # Drop shadow for floating glass effect
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(28)
-        shadow.setColor(QColor(0, 0, 0, 160))
+        shadow.setColor(QColor(0, 0, 0, 170))
         shadow.setOffset(0, 8)
         self.setGraphicsEffect(shadow)
 
@@ -131,13 +133,14 @@ class FloatingPill(QWidget):
         self.auto_hide_timer.setSingleShot(True)
         self.auto_hide_timer.timeout.connect(self._finish_hide)
 
-        # Waveform visualizer child widget
-        self.waveform = FluidWaveform(self, num_bars=7)
-        self.waveform.move(148, 9)
+        # Waveform visualizer child widget positioned on the right
+        self.waveform = FluidWaveform(self, num_bars=6)
+        self.waveform.move(292, 10)
 
         # Internal signal wiring
         self.state_changed.connect(self._apply_state)
         self.level_updated.connect(self.waveform.set_level)
+        self.live_text_updated.connect(self._on_live_text)
 
         self._center_bottom()
 
@@ -160,8 +163,14 @@ class FloatingPill(QWidget):
 
     def set_recording(self):
         self.elapsed_seconds = 0
+        self.live_text = ""
         self.clock_timer.start(1000)
         self.state_changed.emit("recording", "Listening...")
+
+    def _on_live_text(self, text: str):
+        if self.current_state == "recording":
+            self.live_text = text.strip()
+            self.update()
 
     def set_processing(self):
         self.clock_timer.stop()
@@ -235,7 +244,7 @@ class FloatingPill(QWidget):
             dot_color = QColor(239, 68, 68)
             painter.setPen(Qt.NoPen)
             painter.setBrush(QBrush(dot_color))
-            painter.drawEllipse(QRectF(18 - pulse_radius, h / 2.0 - pulse_radius, pulse_radius * 2, pulse_radius * 2))
+            painter.drawEllipse(QRectF(16 - pulse_radius, h / 2.0 - pulse_radius, pulse_radius * 2, pulse_radius * 2))
 
             # Live Timer Text (e.g., 0:04)
             mins = self.elapsed_seconds // 60
@@ -243,21 +252,28 @@ class FloatingPill(QWidget):
             time_str = f"{mins}:{secs:02d}"
 
             painter.setPen(QColor(241, 245, 249))
-            font = QFont("Segoe UI", 10, QFont.Bold)
-            painter.setFont(font)
-            painter.drawText(QRectF(34, 0, 48, h), Qt.AlignVCenter | Qt.AlignLeft, time_str)
+            font_timer = QFont("Segoe UI", 9, QFont.Bold)
+            painter.setFont(font_timer)
+            painter.drawText(QRectF(26, 0, 42, h), Qt.AlignVCenter | Qt.AlignLeft, time_str)
 
-            # "Flow" label
-            painter.setPen(QColor(148, 163, 184))
-            font_label = QFont("Segoe UI", 9, QFont.Normal)
-            painter.setFont(font_label)
-            painter.drawText(QRectF(78, 0, 68, h), Qt.AlignVCenter | Qt.AlignLeft, "Flowing")
+            # Center: Real-time Live Streaming Transcript
+            if self.live_text:
+                painter.setPen(QColor(248, 250, 252))
+                font_live = QFont("Segoe UI", 9, QFont.DemiBold)
+                painter.setFont(font_live)
+                elided = painter.fontMetrics().elidedText(f'"{self.live_text}"', Qt.ElideLeft, 210)
+                painter.drawText(QRectF(70, 0, 214, h), Qt.AlignVCenter | Qt.AlignLeft, elided)
+            else:
+                painter.setPen(QColor(148, 163, 184))
+                font_hint = QFont("Segoe UI", 9, QFont.Normal)
+                painter.setFont(font_hint)
+                painter.drawText(QRectF(70, 0, 214, h), Qt.AlignVCenter | Qt.AlignLeft, "Listening...")
 
             # Cancel Button '✕' on the far right
             painter.setPen(QColor(148, 163, 184))
             font_x = QFont("Segoe UI", 10, QFont.Normal)
             painter.setFont(font_x)
-            painter.drawText(QRectF(w - 28, 0, 20, h), Qt.AlignVCenter | Qt.AlignLeft, "✕")
+            painter.drawText(QRectF(w - 24, 0, 18, h), Qt.AlignVCenter | Qt.AlignLeft, "✕")
 
         elif self.current_state == "processing":
             # Shimmering "Flowing..." spinner / dots

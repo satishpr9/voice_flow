@@ -12,6 +12,7 @@ from app.core.stt_engine import STTEngine
 from app.core.text_injector import TextInjector
 from app.core.hotkey_manager import HotkeyManager
 from app.core.text_cleaner import TextCleaner
+from app.core.streaming_transcriber import StreamingTranscriber
 from app.utils.db import HistoryDatabase
 from app.utils.sound_effects import SoundEffects
 from app.ui.floating_pill import FloatingPill
@@ -53,6 +54,7 @@ class FlowApp(QObject):
 
     toggle_requested = Signal()
     audio_level_signal = Signal(float)
+    live_transcript_signal = Signal(str)
 
     def __init__(self, app: QApplication):
         super().__init__()
@@ -77,6 +79,14 @@ class FlowApp(QObject):
             level_callback=lambda lvl: self.audio_level_signal.emit(lvl),
         )
 
+        # Real-time streaming transcriber (Wispr Flow live transcribing)
+        self.streamer = StreamingTranscriber(
+            stt_engine=self.stt_engine,
+            get_buffer_fn=self.audio_recorder.get_current_buffer,
+            on_partial_text=lambda partial: self.live_transcript_signal.emit(partial),
+            interval=0.55,
+        )
+
         self.text_injector = TextInjector()
         self.worker = TranscriptionWorker(self.stt_engine, clean_speech=self.config.clean_speech)
         self.worker.finished.connect(self._on_transcription_finished)
@@ -90,6 +100,10 @@ class FlowApp(QObject):
         self.toggle_requested.connect(self.toggle_recording)
         self.audio_level_signal.connect(self.pill.level_updated.emit)
         self.pill.cancel_requested.connect(self._cancel_recording)
+
+        # Wire real-time live transcribing stream
+        self.live_transcript_signal.connect(self.pill.live_text_updated.emit)
+        self.live_transcript_signal.connect(self.main_window.update_live_partial)
 
         self.main_window.dictation_requested.connect(self.toggle_recording)
         self.tray.show_studio_requested.connect(self._show_studio)
@@ -151,6 +165,7 @@ class FlowApp(QObject):
             SoundEffects.play_start()
 
         self.audio_recorder.start_recording()
+        self.streamer.start()
         self.pill.set_recording()
         self.main_window.btn_manual_record.setText("■ Stop Recording")
 
@@ -158,6 +173,7 @@ class FlowApp(QObject):
         """User pressed cancel ✕ on the floating pill."""
         print("[FlowApp] Recording cancelled by user.")
         self._is_cancelled = True
+        self.streamer.stop()
         self.audio_recorder.stop_recording()
         self.pill.set_idle()
         self.main_window.btn_manual_record.setText("● Start Recording")
@@ -168,6 +184,9 @@ class FlowApp(QObject):
 
         duration = time.time() - self._record_start_time
         print(f"[FlowApp] Recording stopped (duration: {duration:.2f}s). Processing...")
+
+        # Stop streaming loop before final transcription
+        self.streamer.stop()
 
         if self.config.play_chimes:
             SoundEffects.play_stop()
@@ -219,6 +238,7 @@ class FlowApp(QObject):
 
     def quit_app(self):
         print("[FlowApp] Shutting down...")
+        self.streamer.stop()
         self.hotkey_manager.stop()
         self.audio_recorder.stop_recording()
         self.app.quit()
